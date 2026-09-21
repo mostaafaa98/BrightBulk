@@ -74,7 +74,8 @@ class MainActivity : Activity() {
         buildNav("الإعدادات")
         clear()
         content.addView(tv("إعدادات WhatsApp",22f,true))
-        content.addView(tv("اربط Bright Bulk مع OpenWA. لا تحتاج Phone Number ID أو Access Token.",14f))
+        content.addView(tv("اربط Bright Bulk مع OpenWA — بدون Phone Number ID أو Access Token.",14f))
+
         val base=field("رابط OpenWA API — مثال http://192.168.1.5:8080",prefs.getString("openwa_url","http://localhost:8080")?:"http://localhost:8080")
         val key=field("OpenWA API Key",prefs.getString("openwa_key","")?:"")
         key.inputType=0x81
@@ -100,7 +101,7 @@ class MainActivity : Activity() {
         qr.setOnClickListener{openQr(base.text.toString().trim())}
         content.addView(qr)
 
-        content.addView(tv("طريقة العمل:\n1. شغّل OpenWA على جهاز أو سيرفر.\n2. افتح QR واربط WhatsApp من الهاتف: الأجهزة المرتبطة.\n3. ارجع للتطبيق واختبر الاتصال.\n\n⚠️ OpenWA غير رسمي ويعتمد على WhatsApp Web؛ استخدم رقمًا مخصصًا للتجربة وتجنب الرسائل المزعجة.",14f))
+        content.addView(tv("طريقة العمل:\n1. شغّل OpenWA.\n2. افتح QR واربط WhatsApp من الأجهزة المرتبطة.\n3. اختبر الاتصال ثم ابدأ الحملة.\n\n⚠️ OpenWA غير رسمي ويعتمد على WhatsApp Web؛ استخدم رقمًا مخصصًا للتجربة.",14f))
     }
     private fun testConnection(){
         val base=prefs.getString("openwa_url","")?.trim()?.trimEnd('/')?:""
@@ -112,7 +113,7 @@ class MainActivity : Activity() {
             runOnUiThread{
                 val ok=r.first in 200..299
                 status.text=if(ok)"✅ OpenWA متصل" else "❌ فشل الاتصال: HTTP ${r.first}"
-                toast(if(ok)"حالة WhatsApp: ${r.second.take(80)}" else r.second.take(120))
+                toast(if(ok)"OpenWA متصل" else r.second.take(120))
             }
         }
     }
@@ -120,32 +121,48 @@ class MainActivity : Activity() {
     private fun openQr(raw:String){
         val base=raw.trim().trimEnd('/')
         if(base.isBlank()){toast("أدخل رابط OpenWA أولاً");return}
-        try{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("$base/qr")))}
-        catch(e:Exception){toast("تعذر فتح QR")}
+        try{
+            startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("$base/qr")))
+        }catch(e:Exception){toast("تعذر فتح QR")}
     }
 
     private fun sendCampaign(list:List<Customer>,message:String,delaySeconds:Long){
         if(running){toast("هناك حملة تعمل بالفعل");return}
+
         val base=prefs.getString("openwa_url","")?.trim()?.trimEnd('/')?:""
         val key=prefs.getString("openwa_key","")?:""
-        if(base.isBlank()){toast("ادخل إعدادات OpenWA أولاً");settings();return}
+
+        if(base.isBlank()){
+            toast("ادخل إعدادات OpenWA أولاً")
+            settings()
+            return
+        }
+
         running=true
         status.text="🚀 الحملة تعمل..."
+
         thread{
             for((i,c) in list.withIndex()){
                 if(!running)break
+
                 val phone=normalizePhone(c.phone)
                 if(phone.isBlank()){
                     skipped++
                     updateStats(i+1,list.size)
                     continue
                 }
-                val body=buildOpenWaJson(phone,message.replace("{{name}}",c.name.ifBlank{"عميلنا"}))
+
+                val text=message.replace("{{name}}",c.name.ifBlank{"عميلنا"})
+                val body="""{"to":"${esc(phone)}@c.us","text":"${esc(text)}"}"""
                 val r=apiPost("$base/api/sendText",key,body)
-                if(r.first in 200..299)sent++ else failed++
+
+                if(r.first in 200..299) sent++ else failed++
                 updateStats(i+1,list.size)
-                if(i<list.lastIndex&&running)Thread.sleep(delaySeconds.coerceAtLeast(0)*1000L)
+
+                if(i<list.lastIndex && running)
+                    Thread.sleep(delaySeconds.coerceAtLeast(0)*1000L)
             }
+
             running=false
             runOnUiThread{
                 status.text="انتهت الحملة — نجاح: $sent | فشل: $failed | تخطي: $skipped"
@@ -160,9 +177,9 @@ class MainActivity : Activity() {
     private fun normalizePhone(raw:String):String{var s=raw.trim().replace(" ","").replace("-","").replace("(","").replace(")","");if(s.startsWith("+"))s=s.drop(1);if(s.startsWith("00"))s=s.drop(2);if(s.startsWith("01")&&s.length==11)s="20"+s.drop(1);return s.filter{it.isDigit()}}
     private fun apiGet(url:String,key:String):Pair<Int,String>{
         return try{
-            val c=URL(url).openConnection()as HttpURLConnection
+            val c=URL(url).openConnection() as HttpURLConnection
             c.requestMethod="GET"
-            if(key.isNotBlank())c.setRequestProperty("X-API-Key",key)
+            if(key.isNotBlank()) c.setRequestProperty("X-API-Key",key)
             c.connectTimeout=20000
             c.readTimeout=20000
             val code=c.responseCode
@@ -175,10 +192,10 @@ class MainActivity : Activity() {
 
     private fun apiPost(url:String,key:String,json:String):Pair<Int,String>{
         return try{
-            val c=URL(url).openConnection()as HttpURLConnection
+            val c=URL(url).openConnection() as HttpURLConnection
             c.requestMethod="POST"
             c.doOutput=true
-            if(key.isNotBlank())c.setRequestProperty("X-API-Key",key)
+            if(key.isNotBlank()) c.setRequestProperty("X-API-Key",key)
             c.setRequestProperty("Content-Type","application/json; charset=UTF-8")
             c.connectTimeout=20000
             c.readTimeout=20000
