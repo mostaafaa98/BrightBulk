@@ -34,6 +34,8 @@ class MainActivity : Activity() {
     private lateinit var stats: TextView
 
     private fun dp(v:Int)= (v*resources.displayMetrics.density).toInt()
+    private fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT)=GradientDrawable().apply{shape=GradientDrawable.RECTANGLE;cornerRadius=dp(radius).toFloat();setColor(fill);if(stroke!=Color.TRANSPARENT)setStroke(dp(1),stroke)}
+    private fun gradient(start:Int,end:Int,radius:Int)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(start,end)).apply{cornerRadius=dp(radius).toFloat()}
     private fun tv(t:String,s:Float=15f,b:Boolean=false)=TextView(this).apply{text=t;textSize=s;setTextColor(Color.rgb(16,24,40));if(b)typeface=Typeface.DEFAULT_BOLD;setPadding(dp(3),dp(5),dp(3),dp(5))}
     private fun btn(t:String)=TextView(this).apply{text=t;textSize=14f;gravity=Gravity.CENTER;setTextColor(Color.rgb(8,123,80));typeface=Typeface.DEFAULT_BOLD;background=rounded(Color.WHITE,17,Color.rgb(174,226,207));setPadding(dp(12),dp(10),dp(12),dp(10));isClickable=true;minHeight=dp(48);elevation=dp(1).toFloat()}
     private fun field(h:String,v:String="",lines:Int=1)=EditText(this).apply{hint=h;setText(v);setPadding(dp(14),dp(10),dp(14),dp(10));if(lines>1){minLines=lines;gravity=Gravity.TOP}}
