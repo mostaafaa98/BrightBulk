@@ -1,0 +1,8 @@
+<resources>
+    <color name="bright_green">#0AA86B</color>
+    <color name="bright_green_dark">#087B50</color>
+    <color name="bright_ink">#101828</color>
+    <color name="bright_muted">#667085</color>
+    <color name="bright_bg">#F5F7FA</color>
+    <color name="bright_line">#E4E7EC</color>
+</resources>
