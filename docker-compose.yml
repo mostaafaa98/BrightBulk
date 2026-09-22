@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: brightbulk
+      POSTGRES_USER: brightbulk
+      POSTGRES_PASSWORD: brightbulk
+    volumes: [bb_pg:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL","pg_isready -U brightbulk -d brightbulk"], interval: 5s, timeout: 5s, retries: 10}
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://brightbulk:brightbulk@db:5432/brightbulk
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      WA_ACCESS_TOKEN: ${WA_ACCESS_TOKEN}
+      WA_PHONE_NUMBER_ID: ${WA_PHONE_NUMBER_ID}
+      WA_API_VERSION: ${WA_API_VERSION:-v23.0}
+      WA_VERIFY_TOKEN: ${WA_VERIFY_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      DEFAULT_USER_ID: ${DEFAULT_USER_ID}
+    ports: ["8787:8787"]
+    depends_on: {db: {condition: service_healthy}}
+volumes: {bb_pg: {}}
