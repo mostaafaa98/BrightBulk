@@ -1,17 +1,22 @@
-name: Build Bright Bulk Production
+name: Build Bright Bulk Final
 on:
   workflow_dispatch:
   push:
-    branches: [main, brightbulk-v3, brightbulk-production]
+    branches: [brightbulk-production, brightbulk-final]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
-        with: {distribution: temurin, java-version: '17'}
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-        with: {gradle-version: '8.11.1'}
+        with:
+          gradle-version: '8.11.1'
       - run: gradle --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
-        with: {name: BrightBulk-production-debug-apk, path: app/build/outputs/apk/debug/app-debug.apk}
+        with:
+          name: BrightBulk-Final-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk

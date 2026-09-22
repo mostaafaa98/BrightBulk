@@ -2,7 +2,6 @@ package com.brightbulk.app
 
 import android.app.*
 import android.content.*
-import android.database.sqlite.*
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -11,60 +10,364 @@ import android.view.*
 import android.widget.*
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.UUID
-import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private lateinit var db: LocalDb
-    private lateinit var content: LinearLayout
-    private var active = "الرئيسية"
-    private val bg = Color.rgb(10,11,14); private val card=Color.rgb(23,25,30); private val card2=Color.rgb(31,34,40)
-    private val fg=Color.rgb(245,247,250); private val muted=Color.rgb(155,163,175); private val green=Color.rgb(60,190,125)
-    private fun dp(v:Int)= (v*resources.displayMetrics.density).toInt()
-    private fun tv(s:String,size:Float=14f,bold:Boolean=false)=TextView(this).apply{ text=s;textSize=size;setTextColor(fg);if(bold) setTypeface(null,1);setPadding(dp(4),dp(4),dp(4),dp(4)) }
-    private fun btn(s:String,primary:Boolean=false,click:()->Unit) = tv(s,14f,true).apply{gravity=Gravity.CENTER;setPadding(dp(12),dp(12),dp(12),dp(12));setBackgroundColor(if(primary) Color.rgb(34,105,76) else card2);setOnClickListener{click()}}
-    override fun onCreate(b:Bundle?){super.onCreate(b);db=LocalDb(this);buildShell();home()}
-    private fun buildShell(){
-        val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(bg)}
-        val top=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(12));setBackgroundColor(Color.rgb(15,17,21))}
-        top.addView(tv("B",22f,true).apply{gravity=Gravity.CENTER},LinearLayout.LayoutParams(dp(44),dp(44)))
-        val brand=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),0,0,0)}
-        brand.addView(tv("BRIGHT BULK",18f,true));brand.addView(tv("Production",11f).apply{setTextColor(green)});top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        top.addView(tv("●",13f,true).apply{setTextColor(green)});root.addView(top,LinearLayout.LayoutParams(-1,dp(70)))
-        content=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(16),dp(16),dp(16));setBackgroundColor(bg)}
-        val sc=ScrollView(this);sc.addView(content);root.addView(sc,LinearLayout.LayoutParams(-1,0,1f))
-        val nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;setBackgroundColor(Color.rgb(15,17,21))}
-        listOf("الرئيسية" to ::home,"العملاء" to ::contacts,"الحملات" to ::campaigns,"Inbox" to ::inbox,"الإعدادات" to ::settings).forEach{(name,action)->nav.addView(tv(name,10f,true).apply{gravity=Gravity.CENTER;setPadding(dp(4),dp(15),dp(4),dp(15));setOnClickListener{active=name;action()}},LinearLayout.LayoutParams(0,dp(68),1f))}
-        root.addView(nav);setContentView(root)
-    }
-    private fun page(title:String,sub:String=""){content.removeAllViews();content.addView(tv(title,26f,true));if(sub.isNotBlank())content.addView(tv(sub,13f).apply{setTextColor(muted)})}
-    private fun section(s:String){content.addView(tv(s,16f,true).apply{setPadding(0,dp(18),0,dp(8))})}
-    private fun row(vararg views:View){val r=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};views.forEach{r.addView(it,LinearLayout.LayoutParams(0,-2,1f).apply{setMargins(dp(3),dp(3),dp(3),dp(3)})};content.addView(r)}
-    private fun home(){page("الرئيسية","بيانات حقيقية من قاعدة البيانات المحلية. لا توجد بيانات تجريبية.");row(metric("العملاء",db.count("contacts")),metric("الحملات",db.count("campaigns")));row(metric("الرسائل",db.count("messages")),metric("الردود",db.count("replies")));section("إجراءات");content.addView(btn("＋ إضافة عميل",true){addContact()});content.addView(btn("⇩ استيراد CSV / TXT"){pickFile()});content.addView(btn("＋ إنشاء حملة"){newCampaign()});section("حالة الاتصال");val server=Settings.get(this,"server_url","");content.addView(tv(if(server.isBlank())"Backend: غير متصل — أدخل رابط الخادم من الإعدادات" else "Backend: $server",13f).apply{setTextColor(if(server.isBlank())Color.rgb(235,175,70) else green)})}
-    private fun metric(a:String,v:Int)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(14),dp(12),dp(14),dp(12));setBackgroundColor(card);addView(tv(a,11f).apply{setTextColor(muted)});addView(tv(v.toString(),23f,true))}
-    private fun contacts(){page("العملاء","إدارة العملاء والـ Tags بدون بيانات وهمية.");content.addView(btn("＋ إضافة عميل",true){addContact()});content.addView(btn("⇩ استيراد CSV / TXT"){pickFile()});content.addView(btn("↻ مزامنة العملاء مع الخادم"){syncContacts()});section("قائمة العملاء");db.contacts().forEach{c->val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(10));setBackgroundColor(card)};box.addView(tv(c.name,15f,true));box.addView(tv("${c.phone} • ${c.tags}",11f).apply{setTextColor(muted)});content.addView(box,LinearLayout.LayoutParams(-1,dp(72)).apply{setMargins(0,0,0,dp(7))})}}
-    private fun campaigns(){page("الحملات","إنشاء وتشغيل وإيقاف الحملات الفعلية.");content.addView(btn("＋ حملة جديدة",true){newCampaign()});section("الحملات");db.campaigns().forEach{c->val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(10));setBackgroundColor(card)};box.addView(tv(c.name,15f,true));box.addView(tv("${c.channel} • ${c.status} • ${c.sent}/${c.total}",11f).apply{setTextColor(muted)});val rr=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};rr.addView(btn("تشغيل"){runCampaign(c.id)},LinearLayout.LayoutParams(0,dp(48),1f));rr.addView(btn("إيقاف"){db.status(c.id,"stopped");campaigns()},LinearLayout.LayoutParams(0,dp(48),1f));box.addView(rr);content.addView(box,LinearLayout.LayoutParams(-1,dp(132)).apply{setMargins(0,0,0,dp(8))})}}
-    private fun inbox(){page("Inbox","المحادثات الحقيقية تظهر بعد ربط Webhooks بالقنوات.");section("الرسائل");db.messages().forEach{m->content.addView(tv("${m.channel} • ${m.direction} • ${m.text}",13f).apply{setPadding(dp(12),dp(12),dp(12),dp(12));setBackgroundColor(card);setMarginsCompat(dp(0),0,0,dp(6))})};if(db.messages().isEmpty())content.addView(tv("لا توجد رسائل حتى الآن.",13f).apply{setTextColor(muted)})}
-    private fun settings(){page("الإعدادات","Backend + حساب المستخدم");val url=EditText(this).apply{hint="https://your-domain.com";setText(Settings.get(this@MainActivity,"server_url",""));setTextColor(fg);setHintTextColor(muted)};val email=EditText(this).apply{hint="Email";setText(Settings.get(this@MainActivity,"email",""));setTextColor(fg)};val pass=EditText(this).apply{hint="Password (10+ chars)";setTextColor(fg);inputType=129};content.addView(url);content.addView(email);content.addView(pass);content.addView(btn("حفظ رابط Backend",true){Settings.put(this,"server_url",url.text.toString().trim());Settings.put(this,"email",email.text.toString().trim());toast("تم الحفظ")});content.addView(btn("تسجيل دخول"){auth(url.text.toString().trim(),email.text.toString().trim(),pass.text.toString(),false)});content.addView(btn("إنشاء حساب"){auth(url.text.toString().trim(),email.text.toString().trim(),pass.text.toString(),true)});content.addView(btn("اختبار الاتصال"){testServer(url.text.toString().trim())});section("الأمان");content.addView(tv("التوكن محفوظ محلياً للاستخدام في الجلسة. أسرار WhatsApp وTelegram لا تدخل APK.",13f).apply{setTextColor(muted)})}
-    private fun jsonValue(s:String)=s.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r")
-    private fun auth(server:String,email:String,pass:String,register:Boolean){if(server.isBlank()||email.isBlank()||pass.length<10){toast("أكمل البيانات");return};thread{val path=if(register)"register" else "login";val token=Api.postToken("$server/api/auth/$path","{\"email\":\"${jsonValue(email)}\",\"password\":\"${jsonValue(pass)}\"}");runOnUiThread{if(token!=null){Settings.put(this,"server_url",server);Settings.put(this,"email",email);Settings.put(this,"token",token);toast("تم تسجيل الدخول")}else toast("فشل تسجيل الدخول")}}}
-    private fun syncContacts(){val server=Settings.get(this,"server_url","");val token=Settings.get(this,"token","");if(server.isBlank()||token.isBlank()){toast("سجّل الدخول واربط Backend أولاً");return};val payload=db.contacts().joinToString(",","{\"contacts\":[", "]"){c->"{\"id\":\"${c.id}\",\"name\":\"${jsonValue(c.name)}\",\"phone\":\"${jsonValue(c.phone)}\",\"tags\":[],\"channels\":{\"whatsapp\":\"${jsonValue(c.phone)}\"}}"};thread{val ok=Api.post("$server/api/contacts/bulk",payload,token);runOnUiThread{toast(if(ok)"تمت المزامنة" else "فشلت المزامنة")}}}
-    private fun addContact(){val n=EditText(this).apply{hint="الاسم"};val p=EditText(this).apply{hint="رقم الهاتف"};AlertDialog.Builder(this).setTitle("إضافة عميل").setView(LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0);addView(n);addView(p)}).setNegativeButton("إلغاء",null).setPositiveButton("حفظ"){_,_->db.addContact(n.text.toString(),p.text.toString());contacts()}.show()}
-    private fun newCampaign(){val name=EditText(this).apply{hint="اسم الحملة"};val msg=EditText(this).apply{hint="الرسالة — {{name}}";minLines=4};val channel=Spinner(this).apply{adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,arrayOf("whatsapp","telegram"))};val l=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0);addView(name);addView(channel);addView(msg)};AlertDialog.Builder(this).setTitle("حملة جديدة").setView(l).setNegativeButton("إلغاء",null).setPositiveButton("إنشاء"){_,_->val id=db.addCampaign(name.text.toString(),channel.selectedItem.toString(),msg.text.toString());val server=Settings.get(this,"server_url","");val token=Settings.get(this,"token","");if(server.isNotBlank()&&token.isNotBlank()){thread{val ids=db.contacts().joinToString(",","[", "]"){"\"${it.id}\""};val payload="{\"id\":\"$id\",\"name\":\"${jsonValue(name.text.toString())}\",\"channel\":\"${channel.selectedItem}\",\"body\":\"${jsonValue(msg.text.toString())}\",\"contactIds\":$ids}";val ok=Api.post("$server/api/campaigns",payload,token);runOnUiThread{toast(if(ok)"تم إنشاء الحملة على الخادم" else "تم حفظها محلياً — فشل الخادم")}}}else toast("تم حفظ الحملة محلياً");campaigns()}.show()}
-    private fun runCampaign(id:String){val server=Settings.get(this,"server_url","");val token=Settings.get(this,"token","");if(server.isBlank()||token.isBlank()){toast("سجّل الدخول واربط Backend أولاً");return};thread{val ok=Api.post("$server/api/campaigns/$id/start", "{}", token);runOnUiThread{toast(if(ok)"تم تشغيل الحملة" else "فشل تشغيل الحملة")}}}
-    private fun testServer(server:String){if(server.isBlank()){toast("اكتب رابط الخادم");return};thread{val ok=Api.get("$server/api/health");runOnUiThread{toast(if(ok)"الاتصال ناجح" else "فشل الاتصال")}}}
-    private fun pickFile(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="text/*";addCategory(Intent.CATEGORY_OPENABLE);putExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)},90)}
-    override fun onActivityResult(r:Int,c:Int,data:Intent?){super.onActivityResult(r,c,data);if(r==90&&c==RESULT_OK&&data?.data!=null)importCsv(data.data!!)}
-    private fun importCsv(uri:Uri){thread{val br=BufferedReader(InputStreamReader(contentResolver.openInputStream(uri)!!));var count=0;var line=br.readLine();while(line!=null){val parts=line.split(',', ';', '\t');if(parts.size>=2){val a=parts[0].trim();val b=parts[1].trim();if(a.any{it.isDigit()}) db.addContact(b,a) else db.addContact(a,b);count++};line=br.readLine()};br.close();runOnUiThread{toast("تم استيراد $count عميل");contacts()}}}
-    private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
-    private fun View.setMarginsCompat(l:Int,t:Int,r:Int,b:Int){(layoutParams as? ViewGroup.MarginLayoutParams)?.let{it.setMargins(l,t,r,b);layoutParams=it}}
+    private lateinit var body: LinearLayout
+    private var selectedChannel = "WhatsApp Business"
+    private var campaignContacts = mutableListOf<Contact>()
+    private var campaignIndex = 0
+    private var campaignMessage = ""
+    private var pendingResume = false
 
-    data class C(val id:String,val name:String,val phone:String,val tags:String)
-    data class Camp(val id:String,val name:String,val channel:String,val status:String,val sent:Int,val total:Int)
-    data class Msg(val channel:String,val direction:String,val text:String)
-    class LocalDb(ctx:Context):SQLiteOpenHelper(ctx,"brightbulk.db",null,2){override fun onCreate(d:SQLiteDatabase){d.execSQL("CREATE TABLE contacts(id TEXT PRIMARY KEY,name TEXT,phone TEXT,tags TEXT)");d.execSQL("CREATE TABLE campaigns(id TEXT PRIMARY KEY,name TEXT,channel TEXT,body TEXT,status TEXT,sent INTEGER,total INTEGER)");d.execSQL("CREATE TABLE messages(id TEXT PRIMARY KEY,channel TEXT,direction TEXT,text TEXT)");d.execSQL("CREATE TABLE replies(id TEXT PRIMARY KEY,text TEXT)")};override fun onUpgrade(d:SQLiteDatabase,o:Int,n:Int){if(o<2)d.execSQL("CREATE TABLE IF NOT EXISTS replies(id TEXT PRIMARY KEY,text TEXT)")};fun addContact(n:String,p:String){writableDatabase.execSQL("INSERT OR IGNORE INTO contacts VALUES(?,?,?,?)",arrayOf(UUID.randomUUID().toString(),n.ifBlank{"عميل"},p.trim(),""))};fun contacts():List<C>{val a=mutableListOf<C>();readableDatabase.rawQuery("SELECT id,name,phone,tags FROM contacts ORDER BY rowid DESC",null).use{while(it.moveToNext())a.add(C(it.getString(0),it.getString(1),it.getString(2),it.getString(3)))};return a};fun count(t:String)=readableDatabase.rawQuery("SELECT COUNT(*) FROM $t",null).use{it.moveToFirst();it.getInt(0)};fun addCampaign(n:String,ch:String,b:String):String{val ids=contacts();val id=UUID.randomUUID().toString();writableDatabase.execSQL("INSERT INTO campaigns VALUES(?,?,?,?,?,?,?)",arrayOf(id,n.ifBlank{"حملة"},ch,b,"draft",0,ids.size));return id};fun campaigns():List<Camp>{val a=mutableListOf<Camp>();readableDatabase.rawQuery("SELECT id,name,channel,status,sent,total FROM campaigns ORDER BY rowid DESC",null).use{while(it.moveToNext())a.add(Camp(it.getString(0),it.getString(1),it.getString(2),it.getString(3),it.getInt(4),it.getInt(5)))};return a};fun status(id:String,s:String){writableDatabase.execSQL("UPDATE campaigns SET status=? WHERE id=?",arrayOf(s,id))};fun messages():List<Msg>{val a=mutableListOf<Msg>();readableDatabase.rawQuery("SELECT channel,direction,text FROM messages ORDER BY rowid DESC",null).use{while(it.moveToNext())a.add(Msg(it.getString(0),it.getString(1),it.getString(2)))};return a}}
-    object Settings{fun get(c:Context,k:String,d:String)=c.getSharedPreferences("settings",0).getString(k,d)?:d;fun put(c:Context,k:String,v:String)=c.getSharedPreferences("settings",0).edit().putString(k,v).apply()}
-    object Api{fun postToken(u:String,b:String):String?=try{(URL(u).openConnection() as HttpURLConnection).run{requestMethod="POST";doOutput=true;connectTimeout=8000;readTimeout=8000;setRequestProperty("Content-Type","application/json");outputStream.use{it.write(b.toByteArray())};if(responseCode in 200..299){inputStream.bufferedReader().readText().substringAfter("\"token\":\"").substringBefore("\"")}else null}}catch(_:Exception){null};fun get(u:String):Boolean=try{(URL(u).openConnection() as HttpURLConnection).run{requestMethod="GET";connectTimeout=8000;readTimeout=8000;responseCode in 200..299}}catch(_:Exception){false};fun post(u:String,b:String,token:String?):Boolean=try{(URL(u).openConnection() as HttpURLConnection).run{requestMethod="POST";doOutput=true;connectTimeout=8000;readTimeout=8000;setRequestProperty("Content-Type","application/json");if(token!=null)setRequestProperty("Authorization","Bearer $token");outputStream.use{it.write(b.toByteArray())};responseCode in 200..299}}catch(_:Exception){false}}
+    private val bg = Color.rgb(10,11,14)
+    private val card = Color.rgb(23,25,30)
+    private val card2 = Color.rgb(31,34,40)
+    private val fg = Color.rgb(245,247,250)
+    private val muted = Color.rgb(155,163,175)
+    private val green = Color.rgb(60,190,125)
+
+    private fun dp(v:Int) = (v * resources.displayMetrics.density).toInt()
+
+    override fun onCreate(state: Bundle?) {
+        super.onCreate(state)
+        db = LocalDb(this)
+        shell()
+        home()
+    }
+
+    private fun shell() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setBackgroundColor(Color.rgb(15,17,21))
+        }
+        top.addView(tv("B",22f,true), LinearLayout.LayoutParams(dp(46),dp(46)))
+        val brand = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),0,0,0) }
+        brand.addView(tv("BRIGHT BULK",18f,true))
+        brand.addView(tv("WhatsApp Campaign Manager",11f).apply { setTextColor(green) })
+        top.addView(brand, LinearLayout.LayoutParams(0,-2,1f))
+        root.addView(top, LinearLayout.LayoutParams(-1,dp(70)))
+
+        val scroll = ScrollView(this)
+        body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16),dp(16),dp(16),dp(20))
+        }
+        scroll.addView(body)
+        root.addView(scroll, LinearLayout.LayoutParams(-1,0,1f))
+
+        val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.rgb(15,17,21)) }
+        listOf("الرئيسية" to ::home, "العملاء" to ::contacts, "الحملات" to ::campaigns, "الإعدادات" to ::settings)
+            .forEach { (name, action) ->
+                nav.addView(tv(name,10f,true).apply {
+                    gravity=Gravity.CENTER
+                    setPadding(dp(4),dp(15),dp(4),dp(15))
+                    setOnClickListener { action() }
+                }, LinearLayout.LayoutParams(0,dp(68),1f))
+            }
+        root.addView(nav)
+        setContentView(root)
+    }
+
+    private fun tv(s:String,size:Float=14f,bold:Boolean=false)=TextView(this).apply{
+        text=s; textSize=size; setTextColor(fg)
+        setPadding(dp(4),dp(4),dp(4),dp(4))
+        if(bold) setTypeface(null,1)
+    }
+
+    private fun btn(s:String, primary:Boolean=false, click:()->Unit)=tv(s,14f,true).apply{
+        gravity=Gravity.CENTER
+        setPadding(dp(12),dp(12),dp(12),dp(12))
+        setBackgroundColor(if(primary) Color.rgb(34,105,76) else card2)
+        setOnClickListener{click()}
+    }
+
+    private fun page(title:String, sub:String="") {
+        body.removeAllViews()
+        body.addView(tv(title,26f,true))
+        if(sub.isNotBlank()) body.addView(tv(sub,13f).apply{setTextColor(muted)})
+    }
+
+    private fun section(s:String) {
+        body.addView(tv(s,16f,true).apply{setPadding(0,dp(18),0,dp(8))})
+    }
+
+    private fun addButton(s:String, primary:Boolean=false, action:()->Unit) {
+        body.addView(btn(s,primary,action), LinearLayout.LayoutParams(-1,dp(52)).apply{
+            setMargins(0,0,0,dp(8))
+        })
+    }
+
+    private fun home() {
+        page("الرئيسية","إدارة عملاء وحملات WhatsApp من الموبايل.")
+        section("الحالة")
+        body.addView(tv("WhatsApp يعمل من خلال تطبيق WhatsApp نفسه — بدون Cloud API وبدون Accessibility.",13f).apply{setTextColor(green)})
+        section("إجراءات سريعة")
+        addButton("＋ إضافة عميل",true){addContact()}
+        addButton("⇩ استيراد CSV / TXT"){pickFile()}
+        addButton("＋ إنشاء حملة WhatsApp"){newCampaign()}
+        section("الإحصائيات")
+        body.addView(tv("العملاء: ${db.countContacts()}\nالحملات: ${db.countCampaigns()}\nتم فتح محادثات: ${db.countOpened()}",14f))
+    }
+
+    private fun contacts() {
+        page("العملاء","أضف العملاء أو استوردهم من CSV/TXT.")
+        addButton("＋ إضافة عميل",true){addContact()}
+        addButton("⇩ استيراد CSV / TXT"){pickFile()}
+        section("قائمة العملاء")
+        val list=db.contacts()
+        if(list.isEmpty()) body.addView(tv("لا يوجد عملاء بعد.",13f).apply{setTextColor(muted)})
+        list.forEach { c ->
+            val box=LinearLayout(this).apply{
+                orientation=LinearLayout.VERTICAL
+                setPadding(dp(12),dp(10),dp(12),dp(10))
+                setBackgroundColor(card)
+            }
+            box.addView(tv(c.name,15f,true))
+            box.addView(tv(c.phone,12f).apply{setTextColor(muted)})
+            body.addView(box,LinearLayout.LayoutParams(-1,dp(74)).apply{setMargins(0,0,0,dp(7))})
+        }
+    }
+
+    private fun campaigns() {
+        page("الحملات","الحملات هنا يدوية بمساعدة WhatsApp: أنت تضغط إرسال داخل WhatsApp.")
+        addButton("＋ حملة WhatsApp جديدة",true){newCampaign()}
+        section("الحملات المحفوظة")
+        db.campaigns().forEach { c ->
+            val box=LinearLayout(this).apply{
+                orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(10),dp(12),dp(10)); setBackgroundColor(card)
+            }
+            box.addView(tv(c.name,15f,true))
+            box.addView(tv("${c.total} عميل • ${c.opened} تم فتحهم • ${c.sent} تم تسجيل إرسالهم",11f).apply{setTextColor(muted)})
+            box.addView(btn("▶ بدء الحملة"){startCampaign(c)})
+            body.addView(box,LinearLayout.LayoutParams(-1,dp(125)).apply{setMargins(0,0,0,dp(8))})
+        }
+    }
+
+    private fun settings() {
+        page("الإعدادات","إعداد WhatsApp المستخدم.")
+        section("تطبيق WhatsApp")
+        val sp=Spinner(this)
+        sp.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,
+            arrayOf("WhatsApp Business","WhatsApp العادي"))
+        sp.setSelection(if(selectedChannel=="WhatsApp العادي")1 else 0)
+        sp.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener{
+            override fun onNothingSelected(p:android.widget.AdapterView<*>?) {}
+            override fun onItemSelected(p:android.widget.AdapterView<*>?,v:View?,pos:Int,id:Long){
+                selectedChannel=if(pos==1)"WhatsApp العادي" else "WhatsApp Business"
+            }
+        }
+        body.addView(sp)
+        section("تنبيه")
+        body.addView(tv("لن يتم الضغط على زر إرسال تلقائيًا داخل WhatsApp. بعد فتح المحادثة والرسالة الجاهزة، أنت تضغط إرسال.",13f).apply{setTextColor(muted)})
+    }
+
+    private fun newCampaign() {
+        val name=EditText(this).apply{hint="اسم الحملة";setTextColor(fg);setHintTextColor(muted)}
+        val msg=EditText(this).apply{
+            hint="الرسالة — يمكنك استخدام {{name}}"
+            minLines=5; gravity=Gravity.TOP; setTextColor(fg); setHintTextColor(muted)
+        }
+        val sp=Spinner(this)
+        sp.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,arrayOf("WhatsApp Business","WhatsApp العادي"))
+        val l=LinearLayout(this).apply{
+            orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0)
+            addView(name);addView(sp);addView(msg)
+        }
+        AlertDialog.Builder(this).setTitle("حملة جديدة").setView(l)
+            .setNegativeButton("إلغاء",null)
+            .setPositiveButton("حفظ وبدء"){_,_->
+                val ch=sp.selectedItem.toString()
+                val contacts=db.contacts()
+                if(contacts.isEmpty()){toast("أضف عملاء أولًا");return@setPositiveButton}
+                val id=db.addCampaign(name.text.toString(),ch,msg.text.toString(),contacts.size)
+                startCampaign(db.campaign(id)!!)
+            }.show()
+    }
+
+    private fun startCampaign(c:Campaign) {
+        campaignContacts=db.contacts().toMutableList()
+        if(campaignContacts.isEmpty()){toast("لا يوجد عملاء");return}
+        campaignIndex=0
+        campaignMessage=c.message
+        selectedChannel=c.channel
+        db.markCampaignStarted(c.id)
+        openCurrent(c.id)
+    }
+
+    private fun openCurrent(campaignId:String) {
+        if(campaignIndex>=campaignContacts.size){
+            db.completeCampaign(campaignId)
+            toast("انتهت الحملة")
+            campaigns()
+            return
+        }
+        val c=campaignContacts[campaignIndex]
+        val text=campaignMessage.replace("{{name}}",c.name).replace("{{phone}}",c.phone)
+        val number=c.phone.filter{it.isDigit()}
+        if(number.isBlank()){advance(campaignId);return}
+        val uri=Uri.parse("https://wa.me/$number?text="+Uri.encode(text))
+        val intent=Intent(Intent.ACTION_VIEW,uri)
+        val pkg=if(selectedChannel=="WhatsApp Business")"com.whatsapp.w4b" else "com.whatsapp"
+        intent.setPackage(pkg)
+        try{
+            pendingResume=true
+            db.markOpened(campaignId,c.id)
+            startActivity(intent)
+        }catch(e:Exception){
+            pendingResume=false
+            val chooser=Intent(Intent.ACTION_VIEW,uri)
+            try{startActivity(chooser)}catch(_ :Exception){toast("WhatsApp غير مثبت")}
+        }
+    }
+
+    override fun onResume(){
+        super.onResume()
+        if(pendingResume){
+            pendingResume=false
+            showNextDialog()
+        }
+    }
+
+    private fun showNextDialog(){
+        if(campaignIndex>=campaignContacts.size)return
+        val c=campaignContacts[campaignIndex]
+        AlertDialog.Builder(this)
+            .setTitle("تم فتح المحادثة")
+            .setMessage("${c.name}\n\nاضغط إرسال داخل WhatsApp، ثم ارجع واضغط «التالي».")
+            .setNegativeButton("تخطي"){_,_->advanceFromDialog(false)}
+            .setPositiveButton("التالي"){_,_->advanceFromDialog(true)}
+            .setCancelable(false).show()
+    }
+
+    private fun advanceFromDialog(sent:Boolean){
+        if(campaignIndex<campaignContacts.size){
+            val c=campaignContacts[campaignIndex]
+            db.markResult(c.id,sent)
+        }
+        campaignIndex++
+        val campaign=db.runningCampaign()
+        if(campaign!=null)openCurrent(campaign.id) else campaigns()
+    }
+
+    private fun advance(campaignId:String){
+        campaignIndex++
+        openCurrent(campaignId)
+    }
+
+    private fun addContact(){
+        val n=EditText(this).apply{hint="الاسم"}
+        val p=EditText(this).apply{hint="رقم الهاتف بصيغة دولية"}
+        val l=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),0,dp(18),0);addView(n);addView(p)}
+        AlertDialog.Builder(this).setTitle("إضافة عميل").setView(l)
+            .setNegativeButton("إلغاء",null)
+            .setPositiveButton("حفظ"){_,_->db.addContact(n.text.toString(),p.text.toString());contacts()}.show()
+    }
+
+    private fun pickFile(){
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
+            type="text/*";addCategory(Intent.CATEGORY_OPENABLE)
+        },90)
+    }
+
+    override fun onActivityResult(r:Int,c:Int,data:Intent?){
+        super.onActivityResult(r,c,data)
+        if(r==90&&c==RESULT_OK&&data?.data!=null)importCsv(data.data!!)
+    }
+
+    private fun importCsv(uri:Uri){
+        Thread{
+            var count=0
+            contentResolver.openInputStream(uri)?.use{input->
+                BufferedReader(InputStreamReader(input)).use{br->
+                    var line=br.readLine()
+                    while(line!=null){
+                        val parts=parseLine(line!!)
+                        if(parts.size>=2){
+                            val a=parts[0].trim();val b=parts[1].trim()
+                            val phone=if(a.any{it.isDigit()})a else b
+                            val name=if(a.any{it.isDigit()})b else a
+                            if(phone.filter{it.isDigit()}.length>=7){db.addContact(name,phone);count++}
+                        }
+                        line=br.readLine()
+                    }
+                }
+            }
+            runOnUiThread{toast("تم استيراد $count عميل");contacts()}
+        }.start()
+    }
+
+    private fun parseLine(s:String):List<String>{
+        val sep=when{
+            s.contains(';')->';'
+            s.contains('\t')->'\t'
+            else->','
+        }
+        return s.split(sep)
+    }
+
+    private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
+
+    data class Contact(val id:String,val name:String,val phone:String)
+    data class Campaign(val id:String,val name:String,val channel:String,val message:String,val status:String,val total:Int,val opened:Int,val sent:Int)
+
+    class LocalDb(ctx:Context):SQLiteOpenHelper(ctx,"brightbulk_final.db",null,1){
+        override fun onCreate(d:android.database.sqlite.SQLiteDatabase){
+            d.execSQL("CREATE TABLE contacts(id TEXT PRIMARY KEY,name TEXT NOT NULL,phone TEXT NOT NULL UNIQUE)")
+            d.execSQL("CREATE TABLE campaigns(id TEXT PRIMARY KEY,name TEXT,channel TEXT,message TEXT,status TEXT,total INTEGER,opened INTEGER,sent INTEGER)")
+        }
+        override fun onUpgrade(d:android.database.sqlite.SQLiteDatabase,o:Int,n:Int){}
+        fun addContact(n:String,p:String){
+            val phone=p.trim()
+            if(phone.filter{it.isDigit()}.length<7)return
+            writableDatabase.execSQL("INSERT OR IGNORE INTO contacts VALUES(?,?,?)",
+                arrayOf(UUID.randomUUID().toString(),n.ifBlank{"عميل"},phone))
+        }
+        fun contacts():List<Contact>{
+            val a=mutableListOf<Contact>()
+            readableDatabase.rawQuery("SELECT id,name,phone FROM contacts ORDER BY rowid DESC",null).use{
+                while(it.moveToNext())a.add(Contact(it.getString(0),it.getString(1),it.getString(2)))
+            }
+            return a
+        }
+        fun countContacts()=scalar("SELECT COUNT(*) FROM contacts")
+        fun countCampaigns()=scalar("SELECT COUNT(*) FROM campaigns")
+        fun countOpened()=scalar("SELECT COALESCE(SUM(opened),0) FROM campaigns")
+        private fun scalar(q:String):Int=readableDatabase.rawQuery(q,null).use{it.moveToFirst();it.getInt(0)}
+        fun addCampaign(n:String,ch:String,m:String,total:Int):String{
+            val id=UUID.randomUUID().toString()
+            writableDatabase.execSQL("INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?)",
+                arrayOf(id,n.ifBlank{"حملة WhatsApp"},ch,m,"running",total,0,0))
+            return id
+        }
+        fun campaign(id:String):Campaign?=one("SELECT * FROM campaigns WHERE id=?",arrayOf(id))
+        fun runningCampaign():Campaign?=one("SELECT * FROM campaigns WHERE status='running' ORDER BY rowid DESC LIMIT 1",null)
+        private fun one(q:String,args:Array<String>?):Campaign?{
+            readableDatabase.rawQuery(q,args).use{
+                if(!it.moveToFirst())return null
+                return Campaign(it.getString(0),it.getString(1),it.getString(2),it.getString(3),it.getString(4),it.getInt(5),it.getInt(6),it.getInt(7))
+            }
+        }
+        fun campaigns():List<Campaign>{
+            val a=mutableListOf<Campaign>()
+            readableDatabase.rawQuery("SELECT * FROM campaigns ORDER BY rowid DESC",null).use{
+                while(it.moveToNext())a.add(Campaign(it.getString(0),it.getString(1),it.getString(2),it.getString(3),it.getInt(5),it.getInt(6),it.getInt(7)))
+            }
+            return a
+        }
+        fun markCampaignStarted(id:String){writableDatabase.execSQL("UPDATE campaigns SET status='running' WHERE id=?",arrayOf(id))}
+        fun markOpened(cid:String,contactId:String){writableDatabase.execSQL("UPDATE campaigns SET opened=opened+1 WHERE id=?",arrayOf(cid))}
+        fun markResult(contactId:String,sent:Boolean){
+            val c=runningCampaign() ?: return
+            if(sent)writableDatabase.execSQL("UPDATE campaigns SET sent=sent+1 WHERE id=?",arrayOf(c.id))
+        }
+        fun completeCampaign(id:String){writableDatabase.execSQL("UPDATE campaigns SET status='completed' WHERE id=?",arrayOf(id))}
+    }
 }
