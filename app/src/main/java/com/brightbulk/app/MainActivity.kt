@@ -60,10 +60,10 @@ class MainActivity : Activity() {
     private fun buildNav(active:String){nav.removeAllViews();listOf("الرئيسية" to "⌂","العملاء" to "♙","الحملة" to "✦","الإعدادات" to "⚙").forEach{(label,icon)->val selected=label==active;val x=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;background=rounded(if(selected) Color.rgb(232,250,242) else Color.TRANSPARENT,18);setPadding(dp(6),dp(3),dp(6),dp(3));setOnClickListener{when(label){"الرئيسية"->dashboard();"العملاء"->customers();"الحملة"->campaign();"الإعدادات"->settings()}}};x.addView(tv(icon,19f,true).apply{setTextColor(if(selected) Color.rgb(10,168,107) else Color.rgb(102,112,133));setGravity(Gravity.CENTER)});x.addView(tv(label,10f,selected).apply{setTextColor(if(selected) Color.rgb(8,123,80) else Color.rgb(102,112,133));setGravity(Gravity.CENTER)});nav.addView(x,LinearLayout.LayoutParams(0,-1,1f))}}
     private fun clear(){content.removeAllViews();content.scrollTo(0,0)}
     private fun card(t:String,v:String){val x=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(12));setBackground(rounded(Color.WHITE,20));elevation=dp(2).toFloat()};x.addView(tv(t,13f));x.addView(tv(v,24f,true));val p=LinearLayout.LayoutParams(-1,dp(92));p.setMargins(0,0,0,dp(10));content.addView(x,p);x.alpha=0f;x.translationY=dp(10).toFloat();x.animate().alpha(1f).translationY(0f).setDuration(260).start()}
-    private fun dashboard(){buildNav("الرئيسية");clear();content.addView(tv("لوحة التحكم",22f,true));content.addView(tv("إدارة العملاء والحملات والإرسال من مكان واحد.",14f));card("إجمالي العملاء",customersList.size.toString());card("تم الإرسال",sent.toString());card("فشل",failed.toString());card("تم التخطي",skipped.toString());content.addView(tv("الاتصال: OpenWA مجاني ومفتوح المصدر عبر WhatsApp Web. اربط رقمًا مخصصًا للتجربة.",14f))}
+    private fun dashboard(){buildNav("الرئيسية");clear();content.addView(tv("لوحة التحكم",22f,true));content.addView(tv("إدارة العملاء والحملات والإرسال من مكان واحد.",14f));card("إجمالي العملاء",customersList.size.toString());card("تم الإرسال",sent.toString());card("فشل",failed.toString());card("تم التخطي",skipped.toString());content.addView(tv("WhatsApp Cloud API الرسمي من Meta. تحتاج Phone Number ID وAccess Token.",14f))}
     private fun customers(){buildNav("العملاء");clear();content.addView(tv("العملاء",22f,true));content.addView(tv("الاسم ورقم الهاتف مطلوبان للإرسال.",14f));val imp=btn("📂 استيراد CSV");imp.setOnClickListener{startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="text/*";addCategory(Intent.CATEGORY_OPENABLE)},100)};content.addView(imp);val clr=btn("🗑 مسح قائمة العملاء");clr.setOnClickListener{customersList.clear();sent=0;failed=0;skipped=0;customers()};content.addView(clr);content.addView(tv("عدد العملاء: ${customersList.size}",17f,true));customersList.take(50).forEachIndexed{i,c->content.addView(tv("${i+1}. ${c.name.ifBlank{"بدون اسم"}} — ${c.phone}",14f))};if(customersList.size>50)content.addView(tv("يتم عرض أول 50 فقط.",13f))}
     private fun campaign(){buildNav("الحملة");
-        clear();content.addView(tv("إنشاء حملة",22f,true));content.addView(tv("رسالة نصية عبر OpenWA — استخدم {{name}} للاسم.",14f))
+        clear();content.addView(tv("إنشاء حملة",22f,true));content.addView(tv("رسالة نصية عبر WhatsApp Cloud API — استخدم {{name}} للاسم.",14f))
         val msg=field("نص الرسالة — استخدم {{name}}","",6);content.addView(msg)
         val delay=field("التأخير بين الرسائل بالثواني","3");delay.inputType=2;content.addView(delay)
         val test=btn("🧪 إرسال اختبار لأول عميل");test.setOnClickListener{if(customersList.isEmpty())toast("استورد العملاء أولاً")else sendCampaign(listOf(customersList.first()),msg.text.toString(),delay.text.toString().toLongOrNull()?:3L)};content.addView(test)
@@ -73,67 +73,59 @@ class MainActivity : Activity() {
     private fun settings(){
         buildNav("الإعدادات")
         clear()
-        content.addView(tv("إعدادات WhatsApp",22f,true))
-        content.addView(tv("اربط Bright Bulk مع OpenWA — بدون Phone Number ID أو Access Token.",14f))
+        content.addView(tv("إعدادات WhatsApp Cloud API",22f,true))
+        content.addView(tv("الاتصال الرسمي من Meta — بدون OpenWA أو Chromium.",14f))
 
-        val base=field("رابط OpenWA API — مثال http://192.168.1.5:8080",prefs.getString("openwa_url","http://localhost:8080")?:"http://localhost:8080")
-        val key=field("OpenWA API Key",prefs.getString("openwa_key","")?:"")
-        key.inputType=0x81
-        content.addView(base)
-        content.addView(key)
+        val phoneId=field("Phone Number ID",prefs.getString("wa_phone_id","")?:"")
+        val token=field("Access Token",prefs.getString("wa_token","")?:"")
+        token.inputType=0x81
+        content.addView(phoneId)
+        content.addView(token)
 
         val save=btn("💾 حفظ الاتصال")
         save.setOnClickListener{
             prefs.edit()
-                .putString("openwa_url",base.text.toString().trim().trimEnd('/'))
-                .putString("openwa_key",key.text.toString().trim())
+                .putString("wa_phone_id",phoneId.text.toString().trim())
+                .putString("wa_token",token.text.toString().trim())
                 .apply()
-            status.text="تم حفظ اتصال OpenWA"
+            status.text="تم حفظ اتصال WhatsApp Cloud API"
             toast("تم الحفظ")
         }
         content.addView(save)
 
-        val test=btn("🔌 اختبار اتصال OpenWA")
+        val test=btn("🔌 اختبار اتصال Meta")
         test.setOnClickListener{save.performClick();testConnection()}
         content.addView(test)
 
-        val qr=btn("📱 فتح QR لربط WhatsApp")
-        qr.setOnClickListener{openQr(base.text.toString().trim())}
-        content.addView(qr)
-
-        content.addView(tv("طريقة العمل:\n1. شغّل OpenWA.\n2. افتح QR واربط WhatsApp من الأجهزة المرتبطة.\n3. اختبر الاتصال ثم ابدأ الحملة.\n\n⚠️ OpenWA غير رسمي ويعتمد على WhatsApp Web؛ استخدم رقمًا مخصصًا للتجربة.",14f))
+        content.addView(tv("Cloud API هو المسار الرسمي من Meta. يلزم إعداد WhatsApp Business على Meta والحصول على Phone Number ID وAccess Token قبل الإرسال.",14f))
     }
+
     private fun testConnection(){
-        val base=prefs.getString("openwa_url","")?.trim()?.trimEnd('/')?:""
-        val key=prefs.getString("openwa_key","")?:""
-        if(base.isBlank()){toast("أدخل رابط OpenWA أولاً");return}
-        status.text="جارٍ اختبار OpenWA..."
+        val phoneId=prefs.getString("wa_phone_id","")?.trim()?:""
+        val token=prefs.getString("wa_token","")?.trim()?:""
+        if(phoneId.isBlank()||token.isBlank()){
+            toast("أدخل Phone Number ID وAccess Token أولاً")
+            return
+        }
+        status.text="جارٍ اختبار Meta..."
         thread{
-            val r=apiGet("$base/api/getConnectionState",key)
+            val r=apiGet("https://graph.facebook.com/v26.0/$phoneId?fields=id,display_phone_number,verified_name",token,true)
             runOnUiThread{
                 val ok=r.first in 200..299
-                status.text=if(ok)"✅ OpenWA متصل" else "❌ فشل الاتصال: HTTP ${r.first}"
-                toast(if(ok)"OpenWA متصل" else r.second.take(120))
+                status.text=if(ok)"✅ Meta متصل" else "❌ فشل اتصال Meta: HTTP ${r.first}"
+                toast(if(ok)"تم الاتصال بـ Meta بنجاح" else r.second.take(180))
             }
         }
-    }
-
-    private fun openQr(raw:String){
-        val base=raw.trim().trimEnd('/')
-        if(base.isBlank()){toast("أدخل رابط OpenWA أولاً");return}
-        try{
-            startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("$base/qr")))
-        }catch(e:Exception){toast("تعذر فتح QR")}
     }
 
     private fun sendCampaign(list:List<Customer>,message:String,delaySeconds:Long){
         if(running){toast("هناك حملة تعمل بالفعل");return}
 
-        val base=prefs.getString("openwa_url","")?.trim()?.trimEnd('/')?:""
-        val key=prefs.getString("openwa_key","")?:""
+        val phoneId=prefs.getString("wa_phone_id","")?.trim()?:""
+        val token=prefs.getString("wa_token","")?.trim()?:""
 
-        if(base.isBlank()){
-            toast("ادخل إعدادات OpenWA أولاً")
+        if(phoneId.isBlank()||token.isBlank()){
+            toast("ادخل إعدادات WhatsApp Cloud API أولاً")
             settings()
             return
         }
@@ -153,13 +145,14 @@ class MainActivity : Activity() {
                 }
 
                 val text=message.replace("{{name}}",c.name.ifBlank{"عميلنا"})
-                val body="""{"to":"${esc(phone)}@c.us","text":"${esc(text)}"}"""
-                val r=apiPost("$base/api/sendText",key,body)
+                val body="""{"messaging_product":"whatsapp","recipient_type":"individual","to":"${esc(phone)}","type":"text","text":{"preview_url":false,"body":"${esc(text)}"}}"""
+
+                val r=apiPost("https://graph.facebook.com/v26.0/$phoneId/messages",token,body,true)
 
                 if(r.first in 200..299) sent++ else failed++
                 updateStats(i+1,list.size)
 
-                if(i<list.lastIndex && running)
+                if(i<list.lastIndex&&running)
                     Thread.sleep(delaySeconds.coerceAtLeast(0)*1000L)
             }
 
@@ -175,11 +168,11 @@ class MainActivity : Activity() {
     private fun buildOpenWaJson(phone:String,text:String)="""{"to":"${esc(phone)}@c.us","text":"${esc(text)}"}"""
     private fun esc(s:String)=s.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r")
     private fun normalizePhone(raw:String):String{var s=raw.trim().replace(" ","").replace("-","").replace("(","").replace(")","");if(s.startsWith("+"))s=s.drop(1);if(s.startsWith("00"))s=s.drop(2);if(s.startsWith("01")&&s.length==11)s="20"+s.drop(1);return s.filter{it.isDigit()}}
-    private fun apiGet(url:String,key:String):Pair<Int,String>{
+    private fun apiGet(url:String,key:String,bearer:Boolean=false):Pair<Int,String>{
         return try{
             val c=URL(url).openConnection() as HttpURLConnection
             c.requestMethod="GET"
-            if(key.isNotBlank()) c.setRequestProperty("X-API-Key",key)
+            if(key.isNotBlank()) c.setRequestProperty(if(bearer)"Authorization" else "X-API-Key",if(bearer)"Bearer $key" else key)
             c.connectTimeout=20000
             c.readTimeout=20000
             val code=c.responseCode
@@ -190,12 +183,12 @@ class MainActivity : Activity() {
         }catch(e:Exception){-1 to(e.message?:"Network error")}
     }
 
-    private fun apiPost(url:String,key:String,json:String):Pair<Int,String>{
+    private fun apiPost(url:String,key:String,json:String,bearer:Boolean=false):Pair<Int,String>{
         return try{
             val c=URL(url).openConnection() as HttpURLConnection
             c.requestMethod="POST"
             c.doOutput=true
-            if(key.isNotBlank()) c.setRequestProperty("X-API-Key",key)
+            if(key.isNotBlank()) c.setRequestProperty(if(bearer)"Authorization" else "X-API-Key",if(bearer)"Bearer $key" else key)
             c.setRequestProperty("Content-Type","application/json; charset=UTF-8")
             c.connectTimeout=20000
             c.readTimeout=20000
