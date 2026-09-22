@@ -28,7 +28,7 @@ class BrightBulkV3Activity : Activity() {
         top.addView(t("B",22f,true).apply{gravity=Gravity.CENTER;background=shape(card2);setPadding(dp(12),0,dp(12),0)},LinearLayout.LayoutParams(dp(50),dp(50)))
         val brand=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),0,0,0)}
         brand.addView(t("BRIGHT BULK",19f,true));brand.addView(m("Omnichannel • V3",11f));top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        top.addView(m("● LIVE",11f,true).apply{setTextColor(green)});root.addView(top,LinearLayout.LayoutParams(-1,dp(74)))
+        top.addView(m("● LIVE",11f).apply{setTextColor(green)});root.addView(top,LinearLayout.LayoutParams(-1,dp(74)))
         val sc=ScrollView(this);body=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(18),dp(16),dp(22));layoutDirection=View.LAYOUT_DIRECTION_RTL};sc.addView(body);root.addView(sc,LinearLayout.LayoutParams(-1,0,1f))
         nav=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER;setBackgroundColor(Color.rgb(15,17,20));setPadding(dp(6),dp(5),dp(6),dp(7))};root.addView(nav,LinearLayout.LayoutParams(-1,dp(74)));setContentView(root);drawNav()
     }
