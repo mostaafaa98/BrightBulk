@@ -3,7 +3,7 @@ name: Build Bright Bulk APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, brightbulk-v2 ]
 
 jobs:
   build:
@@ -13,11 +13,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -30,5 +29,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BrightBulk-debug-apk
+          name: BrightBulk-v2-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk

@@ -1,0 +1,12 @@
+{
+  "name": "bright-bulk-backend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Bright Bulk campaign backend with channel adapters and queue worker",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

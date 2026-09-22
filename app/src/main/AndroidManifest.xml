@@ -8,23 +8,27 @@
         android:icon="@drawable/splash_logo"
         android:roundIcon="@drawable/splash_logo"
         android:allowBackup="true"
-        android:supportsRtl="true">
-
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MultiChannelActivity"
             android:exported="false" />
+
         <activity
             android:name=".MainActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".BrightBulkV2Activity"
             android:exported="true">
-
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
-    
+
         <service
             android:name=".BrightBulkAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
