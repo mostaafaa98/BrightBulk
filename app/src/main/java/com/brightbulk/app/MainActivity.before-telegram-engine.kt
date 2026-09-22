@@ -345,67 +345,38 @@ class MainActivity : Activity() {
         clear()
 
         content.addView(tv("إنشاء حملة",24f,true))
-        content.addView(tv("اختار القناة وشغّل الحملة من نفس المكان.",14f))
+        content.addView(tv("رسالة محفوظة + قوالب + مرفقات + تأخير يدوي احترافي.",14f))
 
         content.addView(tv("القناة",13f,true))
         val channel=Spinner(this)
-        channel.adapter=ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            listOf("Telegram — Auto","WhatsApp Business","WhatsApp العادي","Instagram — قريبًا","Messenger — قريبًا")
-        )
+        channel.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("WhatsApp Business","WhatsApp العادي"))
 
-        val savedChannel=prefs.getString("channel","Telegram — Auto") ?: "Telegram — Auto"
-        val channelNames=listOf("Telegram — Auto","WhatsApp Business","WhatsApp العادي","Instagram — قريبًا","Messenger — قريبًا")
-        channel.setSelection(channelNames.indexOf(savedChannel).coerceAtLeast(0))
+        val savedChannel=prefs.getString("channel","WhatsApp Business") ?: "WhatsApp Business"
+        channel.setSelection(if(savedChannel=="WhatsApp العادي")1 else 0)
         campaignChannel=savedChannel
 
         channel.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
             override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long){
-                campaignChannel=channelNames[position]
+                campaignChannel=if(position==0)"WhatsApp Business" else "WhatsApp العادي"
                 prefs.edit().putString("channel",campaignChannel).apply()
             }
             override fun onNothingSelected(parent:AdapterView<*>?){}
         }
         content.addView(channel)
 
-        content.addView(tv("Telegram Bot Token",13f,true))
-        val botToken=field("ضع Bot Token هنا",prefs.getString("telegram_bot_token","") ?: "",1)
-        botToken.inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        content.addView(botToken)
-
-        content.addView(tv("Telegram Chat IDs",13f,true))
-        val chatIds=field(
-            "ضع Chat ID في كل سطر\nمثال:\n123456789\n987654321",
-            prefs.getString("telegram_chat_ids","") ?: "",
-            5
-        )
-        content.addView(chatIds)
-
-        val saveTelegram=btn("💾 حفظ إعدادات Telegram")
-        saveTelegram.setOnClickListener{
-            prefs.edit()
-                .putString("telegram_bot_token",botToken.text.toString().trim())
-                .putString("telegram_chat_ids",chatIds.text.toString())
-                .apply()
-            toast("تم حفظ إعدادات Telegram")
+        content.addView(tv("القالب",13f,true))
+        val names=mutableListOf("بدون قالب")
+        for(i in 1..5){
+            val n=prefs.getString("template_${i}_name","") ?: ""
+            if(n.isNotBlank()) names.add(n)
         }
-        content.addView(saveTelegram)
 
-        val testTelegram=btn("🔎 اختبار Bot")
-        testTelegram.setOnClickListener{
-            testTelegramBot(botToken.text.toString().trim())
-        }
-        content.addView(testTelegram)
+        val templates=Spinner(this)
+        templates.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,names)
+        content.addView(templates)
 
-        content.addView(tv("الرسالة",13f,true))
-        val msg=field(
-            "نص الرسالة — استخدم {{name}}",
-            prefs.getString("draft_message","") ?: "",
-            6
-        )
+        val msg=field("نص الرسالة — استخدم {{name}}",prefs.getString("draft_message","") ?: "",6)
         campaignMessage=msg.text.toString()
-
         msg.addTextChangedListener(object:TextWatcher{
             override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
             override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){
@@ -416,205 +387,161 @@ class MainActivity : Activity() {
         })
         content.addView(msg)
 
-        content.addView(tv("التأخير بين الرسائل",13f,true))
+        val saveDraft=btn("💾 حفظ الرسالة الحالية")
+        saveDraft.setOnClickListener{
+            campaignMessage=msg.text.toString()
+            prefs.edit().putString("draft_message",campaignMessage).apply()
+            toast("تم حفظ الرسالة")
+        }
+        content.addView(saveDraft)
+
+        val templateName=field("اسم القالب للحفظ")
+        content.addView(templateName)
+
+        val saveTemplate=btn("➕ حفظ كقالب")
+        saveTemplate.setOnClickListener{
+            val n=templateName.text.toString().trim()
+            val text=msg.text.toString()
+
+            if(n.isBlank()||text.isBlank()){
+                toast("اكتب اسم القالب والرسالة")
+                return@setOnClickListener
+            }
+
+            var slot=0
+            for(i in 1..5){
+                if((prefs.getString("template_${i}_name","") ?: "").isBlank()){
+                    slot=i
+                    break
+                }
+            }
+
+            if(slot==0){
+                toast("القوالب الخمسة ممتلئة")
+                return@setOnClickListener
+            }
+
+            prefs.edit()
+                .putString("template_${slot}_name",n)
+                .putString("template_${slot}_text",text)
+                .apply()
+
+            toast("تم حفظ القالب")
+            campaign()
+        }
+        content.addView(saveTemplate)
+
+        templates.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
+            override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long){
+                if(position==0)return
+
+                val selectedName=names[position]
+                var slot=0
+
+                for(i in 1..5){
+                    if((prefs.getString("template_${i}_name","") ?: "")==selectedName){
+                        slot=i
+                        break
+                    }
+                }
+
+                if(slot>0){
+                    val t=prefs.getString("template_${slot}_text","") ?: ""
+                    msg.setText(t)
+                    campaignMessage=t
+                    prefs.edit().putString("draft_message",t).apply()
+                }
+            }
+
+            override fun onNothingSelected(parent:AdapterView<*>?){}
+        }
+
+        content.addView(tv("التأخير بين العملاء",13f,true))
+
         val delay=Spinner(this)
-        val delays=listOf("1 ثانية","2 ثانية","5 ثواني","10 ثواني","15 ثانية","30 ثانية")
-        val delayValues=listOf(1,2,5,10,15,30)
+        val delays=listOf("5 ثواني","10 ثواني","15 ثانية","30 ثانية")
         delay.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,delays)
 
-        delaySeconds=prefs.getInt("delay_seconds",5)
-        delay.setSelection(delayValues.indexOf(delaySeconds).coerceAtLeast(0))
+        val savedDelay=prefs.getInt("delay_seconds",10)
+        delaySeconds=savedDelay
+        delay.setSelection(listOf(5,10,15,30).indexOf(savedDelay).coerceAtLeast(0))
 
         delay.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
             override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long){
-                delaySeconds=delayValues[position]
+                delaySeconds=listOf(5,10,15,30)[position]
                 prefs.edit().putInt("delay_seconds",delaySeconds).apply()
             }
             override fun onNothingSelected(parent:AdapterView<*>?){}
         }
         content.addView(delay)
 
-        val progress=tv("جاهز لبدء الحملة",15f,true)
-        progress.setPadding(dp(5),dp(18),dp(5),dp(18))
-        content.addView(progress)
-
-        val startTelegram=btn("🚀 بدء Telegram Bulk تلقائي")
-        startTelegram.setOnClickListener{
-            val token=botToken.text.toString().trim()
-            val ids=chatIds.text.toString()
-                .lines()
-                .map{it.trim()}
-                .filter{it.isNotBlank()}
-                .distinct()
-            val text=msg.text.toString()
-
-            if(token.isBlank()){
-                toast("اكتب Telegram Bot Token")
-                return@setOnClickListener
-            }
-
-            if(ids.isEmpty()){
-                toast("أدخل Chat IDs — كل رقم في سطر")
-                return@setOnClickListener
-            }
-
-            if(text.isBlank()){
-                toast("اكتب الرسالة")
-                return@setOnClickListener
-            }
-
-            prefs.edit()
-                .putString("telegram_bot_token",token)
-                .putString("telegram_chat_ids",chatIds.text.toString())
-                .putString("draft_message",text)
-                .apply()
-
-            running=true
-            sent=0
-            failed=0
-            skipped=0
-
-            startTelegram.isEnabled=false
-            startTelegram.alpha=0.5f
-
-            thread{
-                ids.forEachIndexed{index,id->
-                    if(!running)return@forEachIndexed
-
-                    val personalized=text.replace(
-                        "{{name}}",
-                        "صديق"
-                    )
-
-                    val ok=sendTelegramMessage(token,id,personalized)
-
-                    if(ok) sent++ else failed++
-
-                    val done=index+1
-                    runOnUiThread{
-                        progress.text="📤 Telegram: $done / ${ids.size}\n✅ نجح: $sent   ❌ فشل: $failed"
-                    }
-
-                    if(index<ids.lastIndex && running){
-                        Thread.sleep(delaySeconds*1000L)
-                    }
-                }
-
-                runOnUiThread{
-                    running=false
-                    startTelegram.isEnabled=true
-                    startTelegram.alpha=1f
-                    progress.text="🏁 انتهت الحملة\n📨 الإجمالي: ${ids.size}   ✅ نجح: $sent   ❌ فشل: $failed"
-                    toast("انتهت حملة Telegram")
-                }
-            }
+        val attach=btn("📎 اختيار مرفق — صورة / PDF / مستند / فيديو")
+        attach.setOnClickListener{
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
+                type="*/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            },200)
         }
-        content.addView(startTelegram)
+        content.addView(attach)
 
-        val stop=btn("⛔ إيقاف الحملة")
-        stop.setOnClickListener{
-            running=false
-            progress.text="⏸ تم إيقاف الحملة — تم: $sent   فشل: $failed"
+        val attachInfo=tv(if(attachmentUri==null)"لا يوجد مرفق" else "📎 $attachmentName",13f)
+        content.addView(attachInfo)
+
+        val remove=btn("✕ إزالة المرفق")
+        remove.setOnClickListener{
+            attachmentUri=null
+            attachmentName=""
+            attachInfo.text="لا يوجد مرفق"
         }
-        content.addView(stop)
+        content.addView(remove)
 
-        content.addView(tv("WhatsApp",17f,true))
-        content.addView(tv(
-            "WhatsApp ما زال يعمل بالمسار الحالي. للإرسال البرمجي الأوتوماتيك سنربطه بـ WhatsApp Business Platform / Cloud API بدل Accessibility.",
-            13f
-        ))
+        val check=btn("🔍 فحص القائمة")
+        check.setOnClickListener{showPreflight()}
+        content.addView(check)
 
-        val whatsapp=btn("📱 فتح حملة WhatsApp اليدوية")
-        whatsapp.setOnClickListener{
+        val start=btn("🚀 فتح أول عميل")
+        start.setOnClickListener{
             if(customersList.isEmpty()){
                 toast("استورد العملاء أولاً")
                 return@setOnClickListener
             }
 
-            campaignChannel=if(campaignChannel=="WhatsApp العادي")
-                "WhatsApp العادي"
-            else
-                "WhatsApp Business"
-
             campaignMessage=msg.text.toString()
+            prefs.edit().putString("draft_message",campaignMessage).apply()
+
             currentCampaignIndex=0
             sent=0
             failed=0
             skipped=0
 
-            prefs.edit().putString("draft_message",campaignMessage).apply()
             openCampaignCustomer()
         }
-        content.addView(whatsapp)
-    }
+        content.addView(start)
 
-    private fun testTelegramBot(token:String){
-        if(token.isBlank()){
-            toast("اكتب Bot Token أولاً")
-            return
+        nextButton=btn("✉️ تم الإرسال — انتظار ${delaySeconds} ث")
+        nextButton!!.isEnabled=false
+        nextButton!!.setOnClickListener{confirmSentAndNext()}
+        content.addView(nextButton!!)
+
+        val reset=btn("🔄 إعادة الحملة من البداية")
+        reset.setOnClickListener{
+            cancelCountdown()
+            currentCampaignIndex=0
+            sent=0
+            failed=0
+            skipped=0
+            status.text="تمت إعادة الحملة"
+            updateManualStats()
         }
+        content.addView(reset)
 
-        toast("جاري اختبار Telegram...")
+        stats=tv("جاهز — ${customersList.size} عميل",15f,true)
+        content.addView(stats)
 
-        thread{
-            try{
-                val url=URL("https://api.telegram.org/bot$token/getMe")
-                val conn=url.openConnection() as HttpURLConnection
-                conn.requestMethod="GET"
-                conn.connectTimeout=15000
-                conn.readTimeout=15000
-
-                val response=conn.inputStream.bufferedReader().use{it.readText()}
-                val ok=response.contains("\"ok\":true")
-
-                runOnUiThread{
-                    if(ok) toast("✅ Bot متصل بنجاح")
-                    else toast("❌ Bot Token غير صالح")
-                }
-
-                conn.disconnect()
-            }catch(e:Exception){
-                runOnUiThread{
-                    toast("❌ خطأ اتصال: ${e.message ?: "غير معروف"}")
-                }
-            }
-        }
-    }
-
-    private fun sendTelegramMessage(token:String,chatId:String,text:String):Boolean{
-        return try{
-            val url=URL("https://api.telegram.org/bot$token/sendMessage")
-            val conn=url.openConnection() as HttpURLConnection
-
-            conn.requestMethod="POST"
-            conn.doOutput=true
-            conn.connectTimeout=15000
-            conn.readTimeout=15000
-            conn.setRequestProperty(
-                "Content-Type",
-                "application/x-www-form-urlencoded; charset=UTF-8"
-            )
-
-            val body=
-                "chat_id="+java.net.URLEncoder.encode(chatId,"UTF-8")+
-                "&text="+java.net.URLEncoder.encode(text,"UTF-8")
-
-            conn.outputStream.use{
-                it.write(body.toByteArray(StandardCharsets.UTF_8))
-            }
-
-            val code=conn.responseCode
-            val stream=
-                if(code in 200..299) conn.inputStream
-                else conn.errorStream
-
-            val response=stream?.bufferedReader()?.use{it.readText()} ?: ""
-            conn.disconnect()
-
-            response.contains("\"ok\":true")
-        }catch(e:Exception){
-            false
-        }
+        content.addView(tv(
+            "المرفق يستخدم Android Sharesheet. عند مشاركة ملف، قد يطلب WhatsApp منك اختيار المحادثة؛ Android لا يضمن توجيه المرفق إلى رقم محدد.",
+            13f
+        ))
     }
 
     private fun showPreflight(){
