@@ -344,7 +344,7 @@ class MainActivity : Activity() {
         private fun scalar(q:String):Int=readableDatabase.rawQuery(q,null).use{it.moveToFirst();it.getInt(0)}
         fun addCampaign(n:String,ch:String,m:String,total:Int):String{
             val id=UUID.randomUUID().toString()
-            writableDatabase.execSQL("INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?,?)",
+            writableDatabase.execSQL("INSERT INTO campaigns VALUES(?,?,?,?,?,?,?,?)",
                 arrayOf(id,n.ifBlank{"حملة WhatsApp"},ch,m,"running",total,0,0))
             return id
         }
