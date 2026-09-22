@@ -2,6 +2,7 @@ package com.brightbulk.app
 
 import android.app.*
 import android.content.*
+import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -358,7 +359,7 @@ class MainActivity : Activity() {
         fun campaigns():List<Campaign>{
             val a=mutableListOf<Campaign>()
             readableDatabase.rawQuery("SELECT * FROM campaigns ORDER BY rowid DESC",null).use{
-                while(it.moveToNext())a.add(Campaign(it.getString(0),it.getString(1),it.getString(2),it.getString(3),it.getInt(5),it.getInt(6),it.getInt(7)))
+                while(it.moveToNext())a.add(Campaign(it.getString(0),it.getString(1),it.getString(2),it.getString(3),it.getString(4),it.getInt(5),it.getInt(6),it.getInt(7)))
             }
             return a
         }
