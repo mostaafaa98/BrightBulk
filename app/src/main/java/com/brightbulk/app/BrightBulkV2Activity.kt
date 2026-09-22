@@ -53,7 +53,7 @@ class BrightBulkV2Activity : Activity() {
     private val bg = Color.rgb(11, 12, 14)
     private val panel = Color.rgb(24, 26, 30)
     private val panel2 = Color.rgb(31, 34, 39)
-    private val text = Color.rgb(242, 244, 247)
+    private val textColor = Color.rgb(242, 244, 247)
     private val muted = Color.rgb(158, 164, 174)
     private val stroke = Color.rgb(65, 70, 79)
 
@@ -70,7 +70,7 @@ class BrightBulkV2Activity : Activity() {
         TextView(this).apply {
             text = value
             textSize = size
-            setTextColor(text)
+            setTextColor(textColor)
             if (bold) typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(4), dp(5), dp(4), dp(5))
         }
@@ -80,7 +80,7 @@ class BrightBulkV2Activity : Activity() {
             text = value
             textSize = 13.5f
             gravity = Gravity.CENTER
-            setTextColor(text)
+            setTextColor(textColor)
             if (primary) typeface = Typeface.DEFAULT_BOLD
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = rounded(if (primary) Color.rgb(52, 58, 68) else panel2, 16, stroke)
@@ -93,7 +93,7 @@ class BrightBulkV2Activity : Activity() {
             this.hint = hint
             setText(value)
             textSize = 14f
-            setTextColor(text)
+            setTextColor(textColor)
             setHintTextColor(muted)
             background = rounded(panel2, 15, stroke)
             setPadding(dp(14), dp(12), dp(14), dp(12))
