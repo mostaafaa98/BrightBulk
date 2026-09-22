@@ -4,6 +4,10 @@ import android.app.Activity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.content.pm.PackageManager
+import android.provider.ContactsContract
+import android.text.Editable
+import android.text.TextWatcher
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
@@ -50,13 +54,13 @@ class MainActivity : Activity() {
     private fun gradient(start:Int,end:Int,radius:Int)=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(start,end)).apply{cornerRadius=dp(radius).toFloat()}
     private fun tv(t:String,s:Float=15f,b:Boolean=false)=TextView(this).apply{text=t;textSize=s;setTextColor(Color.rgb(235,237,240));if(b)typeface=Typeface.DEFAULT_BOLD;setPadding(dp(3),dp(5),dp(3),dp(5))}
     private fun btn(t:String)=TextView(this).apply{text=t;textSize=14f;gravity=Gravity.CENTER;setTextColor(Color.rgb(245,246,248));typeface=Typeface.DEFAULT_BOLD;background=rounded(Color.rgb(38,41,45),17,Color.rgb(82,87,94));setPadding(dp(12),dp(10),dp(12),dp(10));isClickable=true;minHeight=dp(48);elevation=dp(1).toFloat()}
-    private fun field(h:String,v:String="",lines:Int=1)=EditText(this).apply{hint=h;setText(v);setTextColor(Color.rgb(238,240,243));setHintTextColor(Color.rgb(145,150,158));background=rounded(Color.rgb(27,29,32),16,Color.rgb(70,74,80));setPadding(dp(14),dp(10),dp(14),dp(10));if(lines>1){minLines=lines;gravity=Gravity.TOP}}
+    private fun field(h:String,v:String="",lines:Int=1)=EditText(this).apply{hint=h;setText(v);setTextColor(Color.rgb(248,249,251));setHintTextColor(Color.rgb(165,170,178));background=rounded(Color.rgb(31,34,39),16,Color.rgb(90,96,105));setPadding(dp(15),dp(12),dp(15),dp(12));if(lines>1){minLines=lines;gravity=Gravity.TOP}}
 
     override fun onCreate(b:Bundle?){super.onCreate(b);loadCustomers();showApp()}
     private fun showApp(){
         root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(Color.rgb(12,13,15));layoutDirection=View.LAYOUT_DIRECTION_RTL}
         val head=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(18),dp(14),dp(18),dp(12));setBackgroundColor(Color.rgb(20,21,24));elevation=dp(5).toFloat()}
-        val logo=TextView(this).apply{text="🧶";textSize=25f;gravity=Gravity.CENTER;setTextColor(Color.WHITE);background=rounded(Color.rgb(38,41,45),18,Color.rgb(82,87,94));elevation=dp(4).toFloat()}
+        val logo=ImageView(this).apply{setImageResource(R.drawable.splash_logo);scaleType=ImageView.ScaleType.CENTER_INSIDE;setPadding(dp(4),dp(4),dp(4),dp(4));background=rounded(Color.rgb(31,34,39),18,Color.rgb(90,96,105));elevation=dp(4).toFloat()}
         head.addView(logo,LinearLayout.LayoutParams(dp(50),dp(50)))
         val brand=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(12),0,0,0)}
         brand.addView(tv("BRIGHT BULK",19f,true));brand.addView(tv("PRO • Campaign Manager",12f))
@@ -136,39 +140,204 @@ class MainActivity : Activity() {
     private fun customers(){
         buildNav("العملاء")
         clear()
-        content.addView(tv("العملاء",24f,true))
-        content.addView(tv("استورد قائمتك، وسيتم حفظها على الجهاز.",14f))
 
-        val imp=btn("📂 استيراد CSV")
-        imp.setOnClickListener{
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
-                type="text/csv"
-                addCategory(Intent.CATEGORY_OPENABLE)
-            },100)
+        content.addView(tv("العملاء",25f,true))
+        content.addView(tv("أضف العملاء بالطريقة المناسبة لك.",14f))
+
+        val csv=btn("📂 استيراد CSV / TXT")
+        csv.setOnClickListener{
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT).apply{
+                    type="*/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                },100
+            )
         }
-        content.addView(imp)
+        content.addView(csv)
 
-        val clr=btn("🗑 مسح قائمة العملاء")
-        clr.setOnClickListener{
-            customersList.clear()
-            prefs.edit().remove("customers").apply()
-            sent=0
-            failed=0
-            skipped=0
-            currentCampaignIndex=0
-            customers()
+        val contacts=btn("👥 إضافة من جهات الاتصال")
+        contacts.setOnClickListener{
+            if(checkSelfPermission(android.Manifest.permission.READ_CONTACTS)!=PackageManager.PERMISSION_GRANTED){
+                requestPermissions(arrayOf(android.Manifest.permission.READ_CONTACTS),501)
+            }else{
+                pickContacts()
+            }
         }
-        content.addView(clr)
+        content.addView(contacts)
 
-        val st=statValue()
-        content.addView(tv("إجمالي: ${customersList.size} • صالح: ${st[0]} • غير صالح: ${st[1]} • مكرر: ${st[2]}",16f,true))
+        val manual=btn("➕ إضافة أرقام يدويًا / لصق قائمة")
+        manual.setOnClickListener{showManualNumbersDialog()}
+        content.addView(manual)
+
+        val statsBox=tv("",15f,true)
+        content.addView(statsBox)
+
+        val refreshStats={
+            val st=statValue()
+            statsBox.text="إجمالي: ${customersList.size}   •   صالح: ${st[0]}   •   غير صالح: ${st[1]}   •   مكرر: ${st[2]}"
+        }
+        refreshStats()
+
+        content.addView(tv("العملاء الحاليون",17f,true))
 
         customersList.take(100).forEachIndexed{i,c->
-            content.addView(tv("${i+1}. ${c.name.ifBlank{"بدون اسم"}} — ${c.phone}",14f))
+            val row=LinearLayout(this).apply{
+                orientation=LinearLayout.HORIZONTAL
+                gravity=Gravity.CENTER_VERTICAL
+                background=rounded(Color.rgb(31,34,39),15,Color.rgb(60,65,72))
+                setPadding(dp(12),dp(8),dp(12),dp(8))
+            }
+
+            val text=tv("${i+1}. ${c.name.ifBlank{"بدون اسم"}}\n${c.phone}",14f)
+            row.addView(text,LinearLayout.LayoutParams(0,-2,1f))
+
+            content.addView(row,LinearLayout.LayoutParams(-1,dp(64)).apply{
+                setMargins(0,0,0,dp(7))
+            })
         }
 
         if(customersList.size>100)
-            content.addView(tv("يتم عرض أول 100 فقط.",13f))
+            content.addView(tv("يتم عرض أول 100 عميل فقط.",13f))
+
+        val clearBtn=btn("🗑 مسح كل العملاء")
+        clearBtn.setOnClickListener{
+            AlertDialog.Builder(this)
+                .setTitle("مسح العملاء")
+                .setMessage("هل تريد حذف كل العملاء المحفوظين؟")
+                .setNegativeButton("إلغاء",null)
+                .setPositiveButton("مسح"){_,_->
+                    customersList.clear()
+                    prefs.edit().remove("customers").apply()
+                    sent=0
+                    failed=0
+                    skipped=0
+                    currentCampaignIndex=0
+                    customers()
+                }.show()
+        }
+        content.addView(clearBtn)
+    }
+
+    private fun showManualNumbersDialog(){
+        val box=EditText(this).apply{
+            hint="أحمد, 201012345678\nمحمد, 201155555555\nأو رقم واحد في كل سطر"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            minLines=8
+            gravity=Gravity.TOP
+            setPadding(dp(15),dp(12),dp(15),dp(12))
+            background=rounded(Color.rgb(31,34,39),15,Color.rgb(90,96,105))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("إضافة أرقام")
+            .setView(box)
+            .setNegativeButton("إلغاء",null)
+            .setPositiveButton("إضافة"){_,_->
+                val added=mutableListOf<Customer>()
+
+                box.text.toString().lines().forEach{line->
+                    val raw=line.trim()
+                    if(raw.isBlank())return@forEach
+
+                    val parts=raw.split(",", "،", limit=2)
+                    val name=if(parts.size==2)parts[0].trim() else "عميل"
+                    val phone=if(parts.size==2)parts[1].trim() else raw
+
+                    if(normalizePhone(phone).length>=10)
+                        added.add(Customer(name,phone))
+                }
+
+                customersList.addAll(added)
+                customersList.distinctBy{normalizePhone(it.phone)}.also{
+                    customersList.clear()
+                    customersList.addAll(it)
+                }
+
+                saveCustomers()
+                toast("تمت إضافة ${added.size} رقم")
+                customers()
+            }.show()
+    }
+
+    private fun pickContacts(){
+        val names=mutableListOf<String>()
+        val phones=mutableListOf<String>()
+
+        try{
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                null,
+                null,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME+" ASC"
+            )?.use{cursor->
+                while(cursor.moveToNext() && names.size<1000){
+                    val name=cursor.getString(0) ?: "بدون اسم"
+                    val phone=cursor.getString(1) ?: ""
+                    if(normalizePhone(phone).length>=10){
+                        names.add("$name\n$phone")
+                        phones.add(phone)
+                    }
+                }
+            }
+        }catch(e:Exception){
+            toast("تعذر قراءة جهات الاتصال")
+            return
+        }
+
+        if(names.isEmpty()){
+            toast("لا توجد جهات اتصال بأرقام صالحة")
+            return
+        }
+
+        val checked=BooleanArray(names.size)
+
+        AlertDialog.Builder(this)
+            .setTitle("اختر جهات الاتصال")
+            .setMultiChoiceItems(names.toTypedArray(),checked){_,which,isChecked->
+                checked[which]=isChecked
+            }
+            .setNegativeButton("إلغاء",null)
+            .setPositiveButton("إضافة المحدد"){_,_->
+                var added=0
+
+                for(i in names.indices){
+                    if(checked[i]){
+                        val display=names[i].split("\n",limit=2)
+                        val name=display.firstOrNull() ?: "عميل"
+                        val phone=phones[i]
+
+                        if(customersList.none{normalizePhone(it.phone)==normalizePhone(phone)}){
+                            customersList.add(Customer(name,phone))
+                            added++
+                        }
+                    }
+                }
+
+                saveCustomers()
+                toast("تمت إضافة $added جهة اتصال")
+                customers()
+            }.show()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode:Int,
+        permissions:Array<out String>,
+        grantResults:IntArray
+    ){
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+
+        if(requestCode==501){
+            if(grantResults.isNotEmpty() && grantResults[0]==PackageManager.PERMISSION_GRANTED){
+                pickContacts()
+            }else{
+                toast("لازم تسمح للتطبيق بقراءة جهات الاتصال")
+            }
+        }
     }
 
     private fun campaign(){
@@ -208,6 +377,14 @@ class MainActivity : Activity() {
 
         val msg=field("نص الرسالة — استخدم {{name}}",prefs.getString("draft_message","") ?: "",6)
         campaignMessage=msg.text.toString()
+        msg.addTextChangedListener(object:TextWatcher{
+            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){}
+            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){
+                campaignMessage=s?.toString() ?: ""
+                prefs.edit().putString("draft_message",campaignMessage).apply()
+            }
+            override fun afterTextChanged(s:Editable?){}
+        })
         content.addView(msg)
 
         val saveDraft=btn("💾 حفظ الرسالة الحالية")
@@ -607,22 +784,35 @@ class MainActivity : Activity() {
 
         if(req!=100)return
 
-        val uri:Uri=data?.data ?: return
+        val uri=data?.data ?: return
 
         try{
-            contentResolver.openInputStream(uri)?.use{input->
-                val lines=BufferedReader(InputStreamReader(input)).readLines()
-                val parsed=parseCsv(lines)
+            val fileName=queryDisplayName(uri)
+            val text=contentResolver.openInputStream(uri)?.use{
+                BufferedReader(InputStreamReader(it,StandardCharsets.UTF_8)).readText()
+            } ?: ""
 
-                customersList.clear()
-                customersList.addAll(parsed.distinctBy{it.phone})
-                saveCustomers()
-
-                status.text="تم استيراد ${customersList.size} عميل"
-                customers()
+            if(text.isBlank()){
+                toast("الملف فارغ")
+                return
             }
+
+            val parsed=parseCsv(text.lines())
+
+            if(parsed.isEmpty()){
+                toast("لم يتم العثور على أرقام. تأكد أن الملف CSV أو TXT وأن به عمود رقم الهاتف.")
+                return
+            }
+
+            customersList.clear()
+            customersList.addAll(parsed.distinctBy{normalizePhone(it.phone)})
+            saveCustomers()
+
+            toast("تم استيراد ${customersList.size} عميل من $fileName")
+            customers()
+
         }catch(e:Exception){
-            status.text="تعذر قراءة CSV: ${e.message}"
+            toast("تعذر قراءة الملف: ${e.message}")
         }
     }
 
@@ -667,6 +857,92 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun parseCsv(lines:List<String>):List<Customer>{if(lines.isEmpty())return emptyList();val first=splitCsv(lines.first()).map{it.trim().lowercase(Locale.ROOT)};val ni0=first.indexOfFirst{it in setOf("name","الاسم","customer","customer_name")};val pi0=first.indexOfFirst{it in setOf("phone","mobile","telephone","رقم","رقم الهاتف","whatsapp")};val start=if(ni0>=0||pi0>=0)1 else 0;val ni=if(ni0>=0)ni0 else 0;val pi=if(pi0>=0)pi0 else 1;return lines.drop(start).mapNotNull{val c=splitCsv(it);if(c.size<=maxOf(ni,pi))null else Customer(c[ni].trim(),c[pi].trim()).takeIf{x->x.phone.isNotBlank()}}}
-    private fun splitCsv(line:String):List<String>{val o=mutableListOf<String>();val b=StringBuilder();var q=false;for(ch in line){when{ch=='"'->q=!q;ch==','&&!q->{o.add(b.toString());b.setLength(0)}else->b.append(ch)}};o.add(b.toString());return o}
+    private fun parseCsv(lines:List<String>):List<Customer>{
+        if(lines.isEmpty())return emptyList()
+
+        val cleaned=lines.map{it.removePrefix("\uFEFF")}.filter{it.isNotBlank()}
+        if(cleaned.isEmpty())return emptyList()
+
+        val delimiter=detectDelimiter(cleaned.first())
+        val first=splitDelimited(cleaned.first(),delimiter)
+            .map{it.trim().removePrefix("\uFEFF").lowercase(Locale.ROOT)}
+
+        val nameHeaders=setOf(
+            "name","full name","customer","customer name",
+            "الاسم","اسم","اسم العميل","العميل"
+        )
+
+        val phoneHeaders=setOf(
+            "phone","mobile","telephone","tel","number",
+            "phone number","mobile number","whatsapp",
+            "رقم","رقم الهاتف","الموبايل","المحمول","واتساب"
+        )
+
+        val nameIndex=first.indexOfFirst{nameHeaders.contains(it)}
+        val phoneIndex=first.indexOfFirst{phoneHeaders.contains(it)}
+
+        val hasHeader=nameIndex>=0 || phoneIndex>=0
+        val start=if(hasHeader)1 else 0
+
+        val result=mutableListOf<Customer>()
+
+        for(line in cleaned.drop(start)){
+            val cells=splitDelimited(line,delimiter).map{it.trim()}
+
+            if(cells.isEmpty())continue
+
+            var pIndex=phoneIndex
+
+            if(pIndex<0 || pIndex>=cells.size){
+                pIndex=cells.indexOfFirst{
+                    val p=normalizePhone(it)
+                    p.length>=10
+                }
+            }
+
+            if(pIndex<0 || pIndex>=cells.size)continue
+
+            val phone=cells[pIndex]
+            if(normalizePhone(phone).length<10)continue
+
+            val nIndex=if(nameIndex>=0 && nameIndex<cells.size)nameIndex else -1
+            val name=if(nIndex>=0)cells[nIndex] else "عميل"
+
+            result.add(Customer(name.ifBlank{"عميل"},phone))
+        }
+
+        return result
+    }
+
+    private fun detectDelimiter(line:String):Char{
+        val comma=line.count{it==','}
+        val semi=line.count{it==';'}
+        val tab=line.count{it=='\t'}
+
+        return when{
+            tab>=comma && tab>=semi -> '\t'
+            semi>comma -> ';'
+            else -> ','
+        }
+    }
+
+    private fun splitDelimited(line:String,delimiter:Char):List<String>{
+        val out=mutableListOf<String>()
+        val buffer=StringBuilder()
+        var quoted=false
+
+        for(ch in line){
+            when{
+                ch=='"' -> quoted=!quoted
+                ch==delimiter && !quoted -> {
+                    out.add(buffer.toString())
+                    buffer.setLength(0)
+                }
+                else -> buffer.append(ch)
+            }
+        }
+
+        out.add(buffer.toString())
+        return out
+    }
 }
