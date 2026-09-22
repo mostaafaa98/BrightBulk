@@ -560,6 +560,7 @@ class MainActivity : Activity() {
             try{
                 val url=URL("https://api.telegram.org/bot$token/getMe")
                 val conn=url.openConnection() as HttpURLConnection
+
                 conn.requestMethod="GET"
                 conn.connectTimeout=15000
                 conn.readTimeout=15000
@@ -567,12 +568,15 @@ class MainActivity : Activity() {
                 val response=conn.inputStream.bufferedReader().use{it.readText()}
                 val ok=response.contains("\"ok\":true")
 
-                runOnUiThread{
-                    if(ok) toast("✅ Bot متصل بنجاح")
-                    else toast("❌ Bot Token غير صالح")
-                }
-
                 conn.disconnect()
+
+                runOnUiThread{
+                    if(ok){
+                        toast("✅ Bot متصل بنجاح")
+                    }else{
+                        toast("❌ Bot Token غير صالح")
+                    }
+                }
             }catch(e:Exception){
                 runOnUiThread{
                     toast("❌ خطأ اتصال: ${e.message ?: "غير معروف"}")
@@ -581,7 +585,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun sendTelegramMessage(token:String,chatId:String,text:String):Boolean{
+    private fun sendTelegramMessage(
+        token:String,
+        chatId:String,
+        text:String
+    ):Boolean{
         return try{
             val url=URL("https://api.telegram.org/bot$token/sendMessage")
             val conn=url.openConnection() as HttpURLConnection
@@ -590,25 +598,32 @@ class MainActivity : Activity() {
             conn.doOutput=true
             conn.connectTimeout=15000
             conn.readTimeout=15000
+
             conn.setRequestProperty(
                 "Content-Type",
                 "application/x-www-form-urlencoded; charset=UTF-8"
             )
 
-            val body=
-                "chat_id="+java.net.URLEncoder.encode(chatId,"UTF-8")+
-                "&text="+java.net.URLEncoder.encode(text,"UTF-8")
+            val body =
+                "chat_id=" + java.net.URLEncoder.encode(chatId,"UTF-8") +
+                "&text=" + java.net.URLEncoder.encode(text,"UTF-8")
 
             conn.outputStream.use{
                 it.write(body.toByteArray(StandardCharsets.UTF_8))
             }
 
             val code=conn.responseCode
-            val stream=
-                if(code in 200..299) conn.inputStream
-                else conn.errorStream
 
-            val response=stream?.bufferedReader()?.use{it.readText()} ?: ""
+            val stream =
+                if(code in 200..299){
+                    conn.inputStream
+                }else{
+                    conn.errorStream
+                }
+
+            val response =
+                stream?.bufferedReader()?.use{it.readText()} ?: ""
+
             conn.disconnect()
 
             response.contains("\"ok\":true")
